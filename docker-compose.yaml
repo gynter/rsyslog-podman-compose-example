@@ -1,0 +1,73 @@
+#
+# Docker RSyslog example (https://github.com/gynter/rsyslog-docker-example)
+#
+---
+version: "3.6"
+services:
+  server:
+    # Source: https://github.com/gynter/docker-rsyslog-relp
+    image: gynter/rsyslog-relp:alpine
+    environment:
+      # Set the time zone for container.
+      - TZ=Europe/Tallinn
+
+      # The permitted peer value must match client's (party which sends messages to server) x509 certificate SAN DNS
+      # Name. Server certificate and client's certificates must be issued from the same root or intermediate CA.
+      - RSYSLOG_TLS_PERMITTED_PEER=rsyslog-docker-example_local-forwarder_1
+    networks:
+      - rsyslog
+    volumes:
+      # Certificates and key for RELP mTLS.
+      - ./pki/server:/etc/pki/rsyslog:ro
+
+      # RSyslog configuration for logging all messages to local file.
+      - ./server/90-local-all-log.conf:/etc/rsyslog.d/90-local-all-log.conf
+
+      # A volume where to store log files.
+      - server-logs:/logs
+    ports:
+      # Expose RELP over TLS.
+      - 2514:2514/tcp
+
+  local-forwarder:
+    # Source: https://github.com/gynter/docker-rsyslog-local-forwarder
+    image: gynter/rsyslog-local-forwarder:alpine
+    # Use custom entry point.
+    entrypoint: /entrypoint.sh
+    environment:
+      # Set the time zone for container.
+      - TZ=Europe/Tallinn
+
+      # The permitted peer value must match server's x509 certificate SAN DNS Name. Server certificate and client's
+      # certificates must be issued from the same root or intermediate CA.
+      - RSYSLOG_TLS_PERMITTED_PEER=rsyslog-docker-example_server_1
+
+      # RSyslog server hostname/ip.
+      - RSYSLOG_RELP_TARGET=rsyslog-docker-example-server-1
+
+      # RSyslog server port.
+      - RSYSLOG_RELP_TARGET_PORT=2514
+    networks:
+      - rsyslog
+    volumes:
+      # Certificates and key for RELP mTLS.
+      - ./pki/local-forwarder:/etc/pki/rsyslog:ro
+
+      # RSyslog configuration for logging all messages to local file.
+      - ./local-forwarder/20-local-all-log.conf:/etc/rsyslog.d/90-local-all-log.conf
+
+      # Local forwarder can also store logs. This is here for example purposes. Usually it's not a sane idea to keep
+      # duplicate logs in multiple places. Thou it's possible to use local forwarder as a backup in case of main log
+      # server failure, but that means log files should definitely logrotated or cleaned up in some other way so it
+      # doesn't eat up storage.
+      - local-forwarder-logs:/logs
+
+      # Custom entry point which executes rsyslogd and then sends example log message to it in every few seconds.
+      - ./local-forwarder/entrypoint.sh:/entrypoint.sh
+
+networks:
+  rsyslog:
+
+volumes:
+  server-logs:
+  local-forwarder-logs:

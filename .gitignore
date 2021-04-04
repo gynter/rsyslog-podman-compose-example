@@ -1,0 +1,14 @@
+# Other.
+*.orig
+*.core
+*.rej
+*~
+*.swp
+*.log
+*.tmp
+*.bak
+.*\#.*\#$
+
+# PKI data.
+/pki
+/logs
